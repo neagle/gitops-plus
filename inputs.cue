@@ -17,6 +17,8 @@ mesh: {
 }
 
 defaults: {
+  redis_cluster_name: "redis"
+
   ports: {
     default_ingress: 10808
     redis_ingress: 10910
