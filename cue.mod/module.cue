@@ -1,1 +1,1 @@
-module: "greymatter.io/plus"
+module: "greymatter.io.plus"

@@ -1,4 +1,4 @@
-package greymatter
+package services
 
 import (
   greymatter "greymatter.io/api"
@@ -171,3 +171,7 @@ import (
   }
   ecdh_curves: ["X25519:P-256:P-521:P-384"]
 }
+
+
+// catalog stub
+#catalogservice: greymatter.#CatalogService
