@@ -14,6 +14,6 @@ catalog_entries: [
 		api_endpoint:              "/"
 		business_impact:           "critical"
 		enable_instance_metrics:   true
-		enable_historical_metrics: false
+		enable_historical_metrics: true
 	}
 ]
