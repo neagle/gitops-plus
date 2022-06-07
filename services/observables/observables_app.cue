@@ -77,11 +77,11 @@ observables_app_config: [
 		domain_key: "edge"
 		route_key:  Name
 		route_match: {
-			path: "/services/observables-app/"
+			path: "/services/observables/"
 		}
 		redirects: [
 			{
-				from:          "^/services/observables-app$"
+				from:          "^/services/observables$"
 				to:            route_match.path
 				redirect_type: "permanent"
 			},
@@ -96,7 +96,7 @@ observables_app_config: [
 		service_id:                "observables_app"
 		version:                   "0.0.1"
 		description:               "A standalone dashboard visualizaing data collected from Grey Matter Observability."
-		api_endpoint:              "/"
+		api_endpoint:              "/services/observables"
 		business_impact:           "critical"
 		enable_instance_metrics:   true
 		enable_historical_metrics: true
