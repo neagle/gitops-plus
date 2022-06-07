@@ -89,6 +89,7 @@ observables_app_config: [
 		prefix_rewrite: "/"
 	},
 
+<<<<<<< HEAD
 	// Grey Matter Catalog service entry
 	greymatter.#CatalogService & {
 		name:                      "Observables App"
@@ -101,4 +102,18 @@ observables_app_config: [
 		enable_instance_metrics:   true
 		enable_historical_metrics: true
 	},
+=======
+  // Grey Matter Catalog service entry
+  greymatter.#CatalogService & {
+    name:                     "Observables App"
+    mesh_id:                   mesh.metadata.name
+    service_id:                "observables_app"
+    version:                   "0.0.1"
+    description:               "A standalone dashboard visualizaing data collected from Grey Matter Observability."
+    api_endpoint:              "/services/observables"
+    business_impact:           "critical"
+    enable_instance_metrics:   true
+    enable_historical_metrics: true
+	}
+>>>>>>> 652355e (update api endpoint)
 ]
