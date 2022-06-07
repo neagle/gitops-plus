@@ -44,7 +44,7 @@ observables_app_config: [
   #cluster & {
     cluster_key: EgressToElasticSearchName
     name: "elasticsearch"
-    retuire_tls: true
+    require_tls: true
     _upstream_host: "3c81f82d69c24552950876e4b5d01579.centralus.azure.elastic-cloud.com"
     _upstream_port: 9243
     _spire_self: Name
