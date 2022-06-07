@@ -1,4 +1,4 @@
-package greymatter
+package services
 
 config: {
   spire: bool | *false @tag(spire,type=bool) // enable Spire-based mTLS
@@ -22,5 +22,8 @@ defaults: {
   ports: {
     default_ingress: 10808
     redis_ingress: 10910
+
+    observables_app_port: 5000
+    egress_elastic_port: 9200
   }
 }
