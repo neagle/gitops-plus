@@ -1,6 +1,6 @@
 package greymatter
 
-let Name = "observables_app"
+let Name = "observables" // Name needs to match the greymatter.io/cluster value in the Kubernetes deployment
 let Port = 5000
 let ObservalbesAppIngressName = "\(Name)_local"
 let EgressToRedisName = "\(Name)_egress_to_redis"
