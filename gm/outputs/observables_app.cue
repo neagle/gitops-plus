@@ -20,7 +20,6 @@ observables_app_config: [
   #cluster & { cluster_key: ObservalbesAppIngressName, _upstream_port: Port },
   #route & { route_key: ObservalbesAppIngressName },
 
-
   // egress->redis
   #domain & { domain_key: EgressToRedisName, port: defaults.ports.redis_ingress },
   #cluster & {
@@ -42,6 +41,9 @@ observables_app_config: [
   #cluster & {
     cluster_key: EgressToElasticSearchName
     name: "elasticsearch"
+    retuire_tls: true
+    _upstream_host: "3c81f82d69c24552950876e4b5d01579.centralus.azure.elastic-cloud.com"
+    _upstream_port: 9243
     _spire_self: Name
     _spire_other: defaults.redis_cluster_name
   },
@@ -55,8 +57,8 @@ observables_app_config: [
   // shared proxy object
   #proxy & {
     proxy_key: Name
-    domain_keys: [ObservalbesAppIngressName, EgressToRedisName]
-    listener_keys: [ObservalbesAppIngressName, EgressToRedisName]
+    domain_keys: [ObservalbesAppIngressName, EgressToRedisName, EgressToElasticSearchName]
+    listener_keys: [ObservalbesAppIngressName, EgressToRedisName, EgressToElasticSearchName]
   },
 
   // Edge config for observables_app ingress
