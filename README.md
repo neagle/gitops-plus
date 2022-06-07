@@ -21,7 +21,5 @@ Fetch all necessary dependencies:
 ## Generate mesh configs
 
 ```bash
-(
-  cue eval -c ./gm/outputs --out text -e mesh_configs_yaml
-)
+  cue eval .
 ```
