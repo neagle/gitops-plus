@@ -15,13 +15,13 @@ package plus
 // This package name refers to your target mesh. We are attempting to write configs for the "gitops-plus"
 // Grey Matter mesh so we all our top level package "gitops-plus". This does not need to match the cue module name.
 import (
-    // NOTE: import paths must be aliased to their respective folders under the services package
+	// NOTE: import paths must be aliased to their respective folders under the services package
 	// otherwise CUE will not evaluate properly. An example import path:
 	// 
 	// alias_name "<cue_module>/{path}:<name_of_directory_package>"
 
-    observables "greymatter.io.plus/services/observables:services"
+	observables "greymatter.io.plus/services/observables:services"
 )
 
-mesh_configs: 
-    observables.ObservablesApp.config
+mesh_configs:
+	observables.ObservablesApp.config

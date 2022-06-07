@@ -1,29 +1,29 @@
 package services
 
 config: {
-  spire: bool | *false @tag(spire,type=bool) // enable Spire-based mTLS
+	spire: bool | *false @tag(spire,type=bool) // enable Spire-based mTLS
 }
 
 mesh: {
-  metadata: {
-    name: string | *"greymatter-mesh"
-  }
-  spec: {
-    zone: string | *"default-zone"
-    images: {
-      proxy: string | *"docker.greymatter.io/release/gm-proxy:1.7.0"
-    }
-  }
+	metadata: {
+		name: string | *"greymatter-mesh"
+	}
+	spec: {
+		zone: string | *"default-zone"
+		images: {
+			proxy: string | *"docker.greymatter.io/release/gm-proxy:1.7.0"
+		}
+	}
 }
 
 defaults: {
-  redis_cluster_name: "redis"
+	redis_cluster_name: "redis"
 
-  ports: {
-    default_ingress: 10808
-    redis_ingress: 10910
+	ports: {
+		default_ingress: 10808
+		redis_ingress:   10910
 
-    observables_app_port: 5000
-    egress_elastic_port: 9200
-  }
+		observables_app_port: 5000
+		egress_elastic_port:  9200
+	}
 }
