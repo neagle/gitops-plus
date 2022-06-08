@@ -93,7 +93,7 @@ observables_app_config: [
 	greymatter.#CatalogService & {
 		name:                      "Observables App"
 		mesh_id:                   mesh.metadata.name
-		service_id:                "observables_app"
+		service_id:                "observables"
 		version:                   "0.0.1"
 		description:               "A standalone dashboard visualizaing data collected from Grey Matter Observability."
 		api_endpoint:              "/services/observables"
