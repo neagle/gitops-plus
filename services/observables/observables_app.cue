@@ -35,7 +35,8 @@ observables_app_config: [
 		_spire_self:  Name
 		_spire_other: defaults.redis_cluster_name
 	},
-	#route & {route_key: EgressToRedisName}, // unused route must exist for the cluster to be registered with sidecar,
+	// unused route must exist for the cluster to be registered with sidecar
+	#route & {route_key: EgressToRedisName},
 	#listener & {
 		listener_key:  EgressToRedisName
 		ip:            "127.0.0.1" // egress listeners are local-only
@@ -45,15 +46,15 @@ observables_app_config: [
 
 	// egress->elasticsearch
 	#domain & {
-    domain_key: EgressToElasticSearchName,
-    port: defaults.ports.egress_elastic_port,
-    custom_headers: [
-      {
-        key: "Host",
-        value: "3c81f82d69c24552950876e4b5d01579.centralus.azure.elastic-cloud.com"
-      }
-    ]
-  },
+		domain_key: EgressToElasticSearchName
+		port:       defaults.ports.egress_elastic_port
+		custom_headers: [
+			{
+				key:   "Host"
+				value: "3c81f82d69c24552950876e4b5d01579.centralus.azure.elastic-cloud.com"
+			},
+		]
+	},
 	#cluster & {
 		cluster_key:    EgressToElasticSearchName
 		name:           "elasticsearch"
@@ -63,7 +64,8 @@ observables_app_config: [
 		_spire_self:    Name
 		_spire_other:   defaults.redis_cluster_name
 	},
-	#route & {route_key: EgressToElasticSearchName}, // unused route must exist for the cluster to be registered with sidecar,
+	// unused route must exist for the cluster to be registered with sidecar
+	#route & {route_key: EgressToElasticSearchName},
 	#listener & {
 		listener_key: EgressToElasticSearchName
 		ip:           "127.0.0.1" // egress listeners are local-only
