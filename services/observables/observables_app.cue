@@ -44,7 +44,16 @@ observables_app_config: [
 	},
 
 	// egress->elasticsearch
-	#domain & {domain_key: EgressToElasticSearchName, port: defaults.ports.egress_elastic_port},
+	#domain & {
+    domain_key: EgressToElasticSearchName,
+    port: defaults.ports.egress_elastic_port,
+    custom_headers: [
+      {
+        key: "Host",
+        value: "3c81f82d69c24552950876e4b5d01579.centralus.azure.elastic-cloud.com"
+      }
+    ]
+  },
 	#cluster & {
 		cluster_key:    EgressToElasticSearchName
 		name:           "elasticsearch"
