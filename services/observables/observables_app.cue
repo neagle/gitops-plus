@@ -35,7 +35,8 @@ observables_app_config: [
 		_spire_self:  Name
 		_spire_other: defaults.redis_cluster_name
 	},
-	#route & {route_key: EgressToRedisName}, // unused route must exist for the cluster to be registered with sidecar,
+	// unused route must exist for the cluster to be registered with sidecar
+	#route & {route_key: EgressToRedisName},
 	#listener & {
 		listener_key:  EgressToRedisName
 		ip:            "127.0.0.1" // egress listeners are local-only
@@ -44,7 +45,16 @@ observables_app_config: [
 	},
 
 	// egress->elasticsearch
-	#domain & {domain_key: EgressToElasticSearchName, port: defaults.ports.egress_elastic_port},
+	#domain & {
+		domain_key: EgressToElasticSearchName
+		port:       defaults.ports.egress_elastic_port
+		custom_headers: [
+			{
+				key:   "Host"
+				value: "3c81f82d69c24552950876e4b5d01579.centralus.azure.elastic-cloud.com"
+			},
+		]
+	},
 	#cluster & {
 		cluster_key:    EgressToElasticSearchName
 		name:           "elasticsearch"
@@ -54,7 +64,8 @@ observables_app_config: [
 		_spire_self:    Name
 		_spire_other:   defaults.redis_cluster_name
 	},
-	#route & {route_key: EgressToElasticSearchName}, // unused route must exist for the cluster to be registered with sidecar,
+	// unused route must exist for the cluster to be registered with sidecar
+	#route & {route_key: EgressToElasticSearchName},
 	#listener & {
 		listener_key: EgressToElasticSearchName
 		ip:           "127.0.0.1" // egress listeners are local-only
@@ -93,7 +104,7 @@ observables_app_config: [
 	greymatter.#CatalogService & {
 		name:                      "Observables App"
 		mesh_id:                   mesh.metadata.name
-		service_id:                "observables_app"
+		service_id:                "observables"
 		version:                   "0.0.1"
 		description:               "A standalone dashboard visualizaing data collected from Grey Matter Observability."
 		api_endpoint:              "/services/observables"
