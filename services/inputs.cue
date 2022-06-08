@@ -17,7 +17,8 @@ mesh: {
 }
 
 defaults: {
-	redis_cluster_name: "redis"
+	redis_cluster_name:        "redis"
+	egress_elasticsearch_host: "3c81f82d69c24552950876e4b5d01579.centralus.azure.elastic-cloud.com"
 
 	ports: {
 		default_ingress: 10808
