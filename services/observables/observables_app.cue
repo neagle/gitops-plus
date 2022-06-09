@@ -51,7 +51,7 @@ observables_app_config: [
 		custom_headers: [
 			{
 				key:   "Host"
-				value: "3c81f82d69c24552950876e4b5d01579.centralus.azure.elastic-cloud.com"
+				value: "98019d74c04945deb3b0f693217f610b.centralus.azure.elastic-cloud.com"
 			},
 		]
 	},
@@ -59,7 +59,7 @@ observables_app_config: [
 		cluster_key:    EgressToElasticSearchName
 		name:           "elasticsearch"
 		require_tls:    true
-		_upstream_host: "3c81f82d69c24552950876e4b5d01579.centralus.azure.elastic-cloud.com"
+		_upstream_host: "98019d74c04945deb3b0f693217f610b.centralus.azure.elastic-cloud.com"
 		_upstream_port: 9243
 		_spire_self:    Name
 		_spire_other:   defaults.redis_cluster_name
