@@ -14,12 +14,12 @@ This project makes use of git submodules for dependency management.
 
 Fetch all necessary dependencies:
 
-```bash
+```sh
 ./scripts/bootstrap
 ```
 
 ## Generate mesh configs
 
-```bash
-  cue eval .
+```sh
+cue eval -c EXPORT.cue --out yaml -e configs
 ```
