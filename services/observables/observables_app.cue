@@ -47,11 +47,11 @@ observables_app_config: [
 	// egress->elasticsearch
 	#domain & {
 		domain_key: EgressToElasticSearchName
-		port:       defaults.ports.egress_elastic_port
+		port:       defaults.ports.egress_elasticsearch_port
 		custom_headers: [
 			{
 				key:   "Host"
-				value: "98019d74c04945deb3b0f693217f610b.centralus.azure.elastic-cloud.com"
+				value: defaults.egress_elasticsearch_host
 			},
 		]
 	},
@@ -59,7 +59,7 @@ observables_app_config: [
 		cluster_key:    EgressToElasticSearchName
 		name:           "elasticsearch"
 		require_tls:    true
-		_upstream_host: "98019d74c04945deb3b0f693217f610b.centralus.azure.elastic-cloud.com"
+		_upstream_host: defaults.egress_elasticsearch_host
 		_upstream_port: 9243
 		_spire_self:    Name
 		_spire_other:   defaults.redis_cluster_name
@@ -69,7 +69,7 @@ observables_app_config: [
 	#listener & {
 		listener_key: EgressToElasticSearchName
 		ip:           "127.0.0.1" // egress listeners are local-only
-		port:         defaults.ports.egress_elastic_port
+		port:         defaults.ports.egress_elasticsearch_port
 	},
 
 	// shared proxy object
