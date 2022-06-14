@@ -23,5 +23,5 @@ import (
 	observables "greymatter.io.plus/services/observables:services"
 )
 
-mesh_configs:
+configs:
 	observables.ObservablesApp.config
