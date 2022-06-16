@@ -47,7 +47,7 @@ observables_app_config: [
 	// egress->elasticsearch
 	#domain & {
 		domain_key: EgressToElasticSearchName
-		port:       defaults.ports.egress_elasticsearch_port
+		port:       9200 // don't change this, the app expects this port
 		custom_headers: [
 			{
 				key:   "Host"
@@ -60,7 +60,7 @@ observables_app_config: [
 		name:           "elasticsearch"
 		require_tls:    true
 		_upstream_host: defaults.egress_elasticsearch_host
-		_upstream_port: 9243
+		_upstream_port: defaults.egress_elasticsearch_port
 		_spire_self:    Name
 		_spire_other:   defaults.redis_cluster_name
 	},
@@ -69,7 +69,7 @@ observables_app_config: [
 	#listener & {
 		listener_key: EgressToElasticSearchName
 		ip:           "127.0.0.1" // egress listeners are local-only
-		port:         defaults.ports.egress_elasticsearch_port
+		port:         9200        // don't change this, the app expects this port
 	},
 
 	// shared proxy object

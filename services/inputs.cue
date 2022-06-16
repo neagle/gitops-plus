@@ -24,7 +24,7 @@ defaults: {
 		default_ingress: 10808
 		redis_ingress:   10910
 
-		observables_app_port: 5000
-		egress_elasticsearch_port:  9200
+		observables_app_port:      5000
+		egress_elasticsearch_port: 443
 	}
 }
