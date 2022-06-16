@@ -60,7 +60,7 @@ observables_app_config: [
 		name:           "elasticsearch"
 		require_tls:    true
 		_upstream_host: defaults.egress_elasticsearch_host
-		_upstream_port: defaults.egress_elasticsearch_port
+		_upstream_port: defaults.ports.egress_elasticsearch_port
 		_spire_self:    Name
 		_spire_other:   defaults.redis_cluster_name
 	},
