@@ -21,7 +21,8 @@ import (
 	// alias_name "<cue_module>/{path}:<name_of_directory_package>"
 
 	observables "greymatter.io.plus/services/observables:services"
+	edge "greymatter.io.plus/services/edge:services"
 )
 
 configs:
-	observables.ObservablesApp.config
+	observables.ObservablesApp.config + edge.Edge.config
