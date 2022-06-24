@@ -79,7 +79,7 @@ observables_app_config: [
 		listener_keys: [ObservablesAppIngressName, EgressToRedisName, EgressToElasticSearchName]
 	},
 
-	// Edge config for observables_app ingress
+	// Config for greymatter.io edge ingress.
 	#cluster & {
 		cluster_key:  Name
 		_spire_other: Name
@@ -100,7 +100,28 @@ observables_app_config: [
 		prefix_rewrite: "/"
 	},
 
-	// Grey Matter Catalog service entry
+	// Config for edge ingress to support mesh-segmentation.
+	// #cluster & {
+	//  cluster_key:  "\(Name)_edge_plus"
+	//  _spire_other: "\(Name)_edge_plus"
+	// },
+	#route & {
+		domain_key: "edge-plus"
+		route_key:  Name
+		route_match: {
+			path: "/services/observables/"
+		}
+		redirects: [
+			{
+				from:          "^/services/observables$"
+				to:            route_match.path
+				redirect_type: "permanent"
+			},
+		]
+		prefix_rewrite: "/"
+	},
+
+	// Grey Matter Catalog service entry.
 	greymatter.#CatalogService & {
 		name:                      "Observables App"
 		mesh_id:                   mesh.metadata.name

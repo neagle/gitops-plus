@@ -2,6 +2,7 @@ package services
 
 import (
 	greymatter "greymatter.io/api"
+	rbac "envoyproxy.io/extensions/filters/http/rbac/v3"
 )
 
 /////////////////////////////////////////////////////////////
@@ -10,18 +11,41 @@ import (
 /////////////////////////////////////////////////////////////
 
 #domain: greymatter.#Domain & {
-	domain_key: string
-	name:       string | *"*"
-	port:       int | *defaults.ports.default_ingress
-	zone_key:   mesh.spec.zone
+	_force_https: bool | *false
+	domain_key:   string
+	name:         string | *"*"
+	port:         int | *defaults.ports.default_ingress
+	zone_key:     mesh.spec.zone
+	force_https:  _force_https
+	if _force_https == true {
+		ssl_config: greymatter.#SSLConfig & {
+			protocols: [ "TLSv1.2"]
+			trust_file: "/etc/proxy/tls/sidecar/ca.crt"
+			cert_key_pairs: [
+				greymatter.#CertKeyPathPair & {
+					certificate_path: "/etc/proxy/tls/sidecar/server.crt"
+					key_path:         "/etc/proxy/tls/sidecar/server.key"
+				},
+			]
+		}
+	}
 }
 
 #listener: greymatter.#Listener & {
-	_tcp_upstream?:        string        // for TCP listeners, you can just specify the upstream cluster
-	_is_ingress:           bool | *false // specifiy if this listener is for ingress which will active default HTTP filters
-	_gm_observables_topic: string        // unique topic name for observable audit collection
-	_spire_self:           string        // can specify current identity - defaults to "edge"
-	_spire_other:          string        // can specify an allowable downstream identity - defaults to "edge"
+	_tcp_upstream?:              string        // for TCP listeners, you can just specify the upstream cluster
+	_is_ingress:                 bool | *false // specifiy if this listener is for ingress which will active default HTTP filters
+	_gm_observables_topic:       string        // unique topic name for observable audit collection
+	_spire_self:                 string        // can specify current identity - defaults to "edge"
+	_spire_other:                string        // can specify an allowable downstream identity - defaults to "edge"
+	_enable_oidc_authentication: bool | *false
+	_enable_oidc_validation:     bool | *false
+	_enable_rbac:                bool | *false
+	_oidc_endpoint:              string
+	_oidc_service_url:           string
+	_oidc_provider:              string
+	_oidc_client_secret:         string
+	_oidc_cookie_domain:         string
+	_oidc_realm:                 string
 
 	listener_key: string
 	name:         listener_key
@@ -40,13 +64,26 @@ import (
 
 	// if there isn't a tcp cluster, then assume http filters, and provide the usual defaults
 	if _tcp_upstream == _|_ && _is_ingress == true {
-		active_http_filters: [...string] | *[ "gm.metrics", "gm.observables"]
+		active_http_filters: [
+			if _enable_oidc_authentication {
+				"gm.oidc-authentication"
+			},
+			"gm.observables",
+			if _enable_oidc_validation {
+				"gm.oidc-validation"
+			},
+			if _enable_rbac {
+				"envoy.rbac"
+			},
+			"gm.metrics",
+			...string,
+		]
 		http_filters: {
 			gm_metrics: {
-				metrics_host:                               "0.0.0.0" // TODO are we still scraping externally? If not, set this to 127.0.0.1
+				metrics_host:                               "0.0.0.0"
 				metrics_port:                               8081
 				metrics_dashboard_uri_path:                 "/metrics"
-				metrics_prometheus_uri_path:                "prometheus" // TODO slash or no slash?
+				metrics_prometheus_uri_path:                "/prometheus"
 				metrics_ring_buffer_size:                   4096
 				prometheus_system_metrics_interval_seconds: 15
 				metrics_key_function:                       "depth"
@@ -58,6 +95,54 @@ import (
 			}
 			gm_observables: {
 				topic: _gm_observables_topic
+			}
+			if _enable_oidc_authentication {
+				"gm_oidc-authentication": #oidc_authentication & {
+					serviceUrl:   _oidc_service_url
+					provider:     _oidc_provider
+					clientSecret: _oidc_client_secret
+					accessToken: {
+						cookieOptions: {
+							domain: _oidc_cookie_domain
+						}
+					}
+					idToken: {
+						cookieOptions: {
+							domain: _oidc_cookie_domain
+						}
+					}
+					tokenRefresh: {
+						endpoint: _oidc_endpoint
+						realm:    _oidc_realm
+					}
+				}
+			}
+			if _enable_oidc_validation {
+				"gm_oidc-validation": {
+					enforce: bool | *false
+					if enforce {
+						enforceResponseCode: int32 | *403
+					}
+					accessToken?: {
+						location: *"header" | _
+						if location == "metadata" {
+							metadataFilter: string
+						}
+					}
+					userInfo?: {
+						location: *"header" | _
+					}
+					TLSConfig?: {
+						useTLS:             bool | *false
+						certPath:           string | *""
+						keyPath:            string | *""
+						caPath:             string | *""
+						insecureSkipVerify: bool | *false
+					}
+				}
+			}
+			if _enable_rbac {
+				envoy_rbac: #envoy_rbac_filter
 			}
 		}
 	}
@@ -168,4 +253,82 @@ import (
 		subject_names: [ for s in _subjects {"spiffe://greymatter.io/\(mesh.metadata.name).\(s)"}]
 	}
 	ecdh_curves: ["X25519:P-256:P-521:P-384"]
+}
+
+#envoy_rbac_filter: rbac.#RBAC | *#default_rbac
+#default_rbac: {
+	rules: {
+		action: "ALLOW"
+		policies: {
+			all: {
+				permissions: [
+					{
+						any: true
+					},
+				]
+				principals: [
+					{
+						any: true
+					},
+				]
+			}
+		}
+	}
+}
+
+#oidc_authentication: {
+	provider:     string | *""
+	serviceUrl:   string | *""
+	callbackPath: string | *"/oauth"
+	clientId:     string | *"edge"
+	clientSecret: string | *""
+
+	accessToken: {
+		// options are "header" | "cookie" | "queryString" | "metadata"
+		location: *"cookie" | _
+		key:      string | *"access_token"
+		if location == "metadata" {
+			metadataFilter: string
+		}
+		if location == "cookie" {
+			cookieOptions: {
+				httpOnly: bool | *true
+				secure:   bool | *false
+				maxAge:   string | *"6h"
+				domain:   string | *""
+				path:     string | *"/"
+			}
+		}
+	}
+
+	idToken: {
+		location: *"cookie" | _
+		key:      string | *"authz_token"
+		if location == "cookie" {
+			cookieOptions: {
+				httpOnly: bool | *true
+				secure:   bool | *false
+				maxAge:   string | *"6h"
+				domain:   string | *""
+				path:     string | *"/"
+			}
+		}
+	}
+
+	tokenRefresh: {
+		enabled:   bool | *true
+		endpoint:  string | *""
+		realm:     string | *""
+		timeoutMs: int | *5000
+		useTLS:    bool | *false
+		if useTLS {
+			certPath:           string | *""
+			keyPath:            string | *""
+			caPath:             string | *""
+			insecureSkipVerify: bool | *false
+		}
+	}
+
+	// Optional requested permissions
+	additionalScopes: [...string] | *["openid"]
 }

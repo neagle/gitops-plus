@@ -27,4 +27,12 @@ defaults: {
 		observables_app_port:      5000
 		egress_elasticsearch_port: 443
 	}
+
+	enable_edge_tls: false
+	oidc: {
+		endpoint:      ""
+		domain:        ""
+		client_secret: ""
+		realm:         ""
+	}
 }
