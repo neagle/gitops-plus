@@ -102,7 +102,7 @@ observables_app_config: [
 
 	// Config for edge ingress to support mesh-segmentation.
 	#route & {
-		domain_key:            "edge-plus"
+		domain_key:            defaults.edge.key
 		route_key:             "\(Name)_edge_plus"
 		_upstream_cluster_key: Name
 		route_match: {
