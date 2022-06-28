@@ -31,16 +31,16 @@ spec:
         imagePullPolicy: Always
         name: sidecar
         ports:
-        - containerPort: 10808
+        - containerPort: 10809
           name: proxy
           protocol: TCP
-        # volumeMounts:
-        # - mountPath: /etc/proxy/tls/sidecar
-        #   name: tls-certs
+        volumeMounts:
+        - mountPath: /etc/proxy/tls/sidecar
+          name: tls-certs
       imagePullSecrets:
       - name: gm-docker-secret
-      # volumes:
-      # - name: tls-certs
-      #   secret:
-      #     defaultMode: 420
-      #     secretName: gm-edge-ingress-certs
+      volumes:
+      - name: tls-certs
+        secret:
+          defaultMode: 420
+          secretName: gm-edge-ingress-certs
