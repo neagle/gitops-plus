@@ -9,6 +9,11 @@ package services
 let Name = "edge-plus"
 let EgressToRedisName = "\(Name)_egress_to_redis"
 
+let IngressPort = 10809
+
+// Uncomment the below line for use with a remote JWKS provider (in this case, Keycloak)
+// let EdgeToKeycloakName = defaults.oidc.jwt_authn_provider.keycloak.remote_jwks.http_uri.cluster
+
 Edge: {
 	name:   Name
 	config: edge_config
@@ -17,17 +22,18 @@ Edge: {
 edge_config: [
 	#domain & {
 		domain_key:   Name
-		port:         10809
+		port:         IngressPort
 		_force_https: defaults.enable_edge_tls
 	},
 	#listener & {
 		listener_key:                Name
-		port:                        10809
+		port:                        IngressPort
 		_gm_observables_topic:       Name
 		_is_ingress:                 true
 		_enable_oidc_authentication: false
+		_enable_rbac:                false
 		_oidc_endpoint:              defaults.oidc.endpoint
-		_oidc_service_url:           "https://\(defaults.oidc.domain):10808"
+		_oidc_service_url:           "https://\(defaults.oidc.domain):\(IngressPort)"
 		_oidc_provider:              "\(defaults.oidc.endpoint)/auth/realms/\(defaults.oidc.realm)"
 		_oidc_client_secret:         defaults.oidc.client_secret
 		_oidc_cookie_domain:         defaults.oidc.domain
@@ -57,5 +63,25 @@ edge_config: [
 		proxy_key: Name
 		domain_keys: [Name, EgressToRedisName]
 		listener_keys: [Name, EgressToRedisName]
-	},
+	}
+
+	// egress->Keycloak for OIDC/JWT Authentication (only necessary with remote JWKS provider)
+	// NB: You need to add the EdgeToKeycloakName key to the domain_keys and listener_keys 
+	// in the #proxy above for the cluster to be discoverable by Envoy
+	// #cluster & {
+	//  cluster_key:    EdgeToKeycloakName
+	//  _upstream_host: defaults.oidc.endpoint_host
+	//  _upstream_port: defaults.oidc.endpoint_port
+	//  ssl_config: {
+	//   protocols: ["TLSv1.2"]
+	//   sni: defaults.oidc.endpoint_host
+	//  }
+	//  require_tls: true
+	// },
+	// #route & {route_key:   EdgeToKeycloakName},
+	// #domain & {domain_key: EdgeToKeycloakName, port: defaults.oidc.endpoint_port},
+	// #listener & {
+	//  listener_key: EdgeToKeycloakName
+	//  port:         defaults.oidc.endpoint_port
+	// },
 ]

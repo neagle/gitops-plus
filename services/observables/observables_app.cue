@@ -101,13 +101,10 @@ observables_app_config: [
 	},
 
 	// Config for edge ingress to support mesh-segmentation.
-	// #cluster & {
-	//  cluster_key:  "\(Name)_edge_plus"
-	//  _spire_other: "\(Name)_edge_plus"
-	// },
 	#route & {
-		domain_key: "edge-plus"
-		route_key:  Name
+		domain_key:            "edge-plus"
+		route_key:             "\(Name)_edge_plus"
+		_upstream_cluster_key: Name
 		route_match: {
 			path: "/services/observables/"
 		}
@@ -131,6 +128,6 @@ observables_app_config: [
 		api_endpoint:              "/services/observables"
 		business_impact:           "critical"
 		enable_instance_metrics:   true
-		enable_historical_metrics: true
+		enable_historical_metrics: false
 	},
 ]
