@@ -3,6 +3,7 @@ package services
 import (
 	greymatter "greymatter.io/api"
 	rbac "envoyproxy.io/extensions/filters/http/rbac/v3"
+	ratelimit "envoyproxy.io/extensions/filters/network/ratelimit/v3"
 )
 
 /////////////////////////////////////////////////////////////
@@ -37,15 +38,18 @@ import (
 	_gm_observables_topic:       string        // unique topic name for observable audit collection
 	_spire_self:                 string        // can specify current identity - defaults to "edge"
 	_spire_other:                string        // can specify an allowable downstream identity - defaults to "edge"
-	_enable_oidc_authentication: bool | *false
 	_enable_oidc_validation:     bool | *false
 	_enable_rbac:                bool | *false
+	_enable_oidc_authentication: bool | *false
 	_oidc_endpoint:              string
 	_oidc_service_url:           string
 	_oidc_provider:              string
+	_oidc_client_id:             string
 	_oidc_client_secret:         string
 	_oidc_cookie_domain:         string
 	_oidc_realm:                 string
+	// You must include a service->rate limiter service cluster
+	_enable_tcp_rate_limit: bool | *false
 
 	listener_key: string
 	name:         listener_key
@@ -53,12 +57,23 @@ import (
 	port:         int | *defaults.ports.default_ingress
 	domain_keys:  [...string] | *[listener_key]
 
-	// if there's a tcp cluster, 
 	if _tcp_upstream != _|_ {
-		active_network_filters: ["envoy.tcp_proxy"]
-		network_filters: envoy_tcp_proxy: {
-			cluster:     _tcp_upstream // NB: contrary to the docs, this points at a cluster *name*, not a cluster_key
-			stat_prefix: _tcp_upstream
+		active_network_filters: [
+			if _enable_tcp_rate_limit {
+				"envoy.rate_limit"
+			},
+			"envoy.tcp_proxy",
+		]
+		network_filters: {
+			if _enable_tcp_rate_limit {
+				envoy_rate_limit: #envoy_tcp_rate_limit
+			}
+
+			// Needs to be last in filter chain
+			envoy_tcp_proxy: {
+				cluster:     _tcp_upstream // NB: contrary to the docs, this points at a cluster *name*, not a cluster_key
+				stat_prefix: _tcp_upstream
+			}
 		}
 	}
 
@@ -68,7 +83,13 @@ import (
 			if _enable_oidc_authentication {
 				"gm.oidc-authentication"
 			},
+			if _enable_oidc_authentication {
+				"gm.ensure-variables"
+			},
 			"gm.observables",
+			if _enable_oidc_authentication {
+				"envoy.jwt_authn"
+			},
 			if _enable_oidc_validation {
 				"gm.oidc-validation"
 			},
@@ -81,7 +102,7 @@ import (
 		http_filters: {
 			gm_metrics: {
 				metrics_host:                               "0.0.0.0"
-				metrics_port:                               8081
+				metrics_port:                               defaults.ports.metrics
 				metrics_dashboard_uri_path:                 "/metrics"
 				metrics_prometheus_uri_path:                "/prometheus"
 				metrics_ring_buffer_size:                   4096
@@ -100,6 +121,7 @@ import (
 				"gm_oidc-authentication": #oidc_authentication & {
 					serviceUrl:   _oidc_service_url
 					provider:     _oidc_provider
+					clientId:     _oidc_client_id
 					clientSecret: _oidc_client_secret
 					accessToken: {
 						cookieOptions: {
@@ -115,6 +137,10 @@ import (
 						endpoint: _oidc_endpoint
 						realm:    _oidc_realm
 					}
+				}
+				"gm_ensure-variables": #ensure_variables_filter
+				"envoy_jwt_authn":     #envoy_jwt_authn & {
+					providers: defaults.edge.oidc.jwt_authn_provider
 				}
 			}
 			if _enable_oidc_validation {
@@ -255,6 +281,7 @@ import (
 	ecdh_curves: ["X25519:P-256:P-521:P-384"]
 }
 
+// Allows for RBAC permissions to be applied to a service and its configuration
 #envoy_rbac_filter: rbac.#RBAC | *#default_rbac
 #default_rbac: {
 	rules: {
@@ -276,11 +303,72 @@ import (
 	}
 }
 
+// This filter is used by OIDC/JWT authentication and ensures that the access_token JWT
+// that is present as a cookie is copied into the header of the request
+// so that it can be accessed by the envoy_jwt_authn filter.
+#ensure_variables_filter: {
+	rules: [...#ensure_variables_rules] | *[
+		{
+			copyTo: [
+				{
+					key:      "access_token"
+					location: "header"
+				},
+			]
+			key:      "access_token"
+			location: "cookie"
+		},
+	]
+}
+
+// If other variables need to be copied/used in other filters, this filter provides
+// a template for those rules.
+#ensure_variables_rules: {
+	key:      string
+	location: string
+	copyTo: [...{
+		key:      string
+		location: string
+	}]
+}
+
+// This filter allows for the JWT supplied by an OIDC provider to be validated and 
+// used in other contexts, such as RBAC configurations.
+#envoy_jwt_authn: {
+	providers: {
+		keycloak?: {
+			issuer:    string | *""
+			audiences: [...string] | *[""]
+			remote_jwks?: {
+				http_uri: {
+					uri:     string | *""
+					cluster: string | *""
+					timeout: string | *"1s"
+				}
+				cache_duration: string | *"300s"
+			}
+			local_jwks?: {
+				inline_string: string | *""
+			}
+			forward:             bool | *true
+			from_headers:        [...] | *[{name: "access_token"}]
+			payload_in_metadata: string | *"claims"
+		}
+	}
+	rules: [...] | *[
+		{
+			match: {prefix: "/"}
+			requires: {provider_name: "keycloak"}
+		},
+	]
+}
+
+// Allows for authentication via an OIDC provider such as Keycloak.
 #oidc_authentication: {
 	provider:     string | *""
 	serviceUrl:   string | *""
 	callbackPath: string | *"/oauth"
-	clientId:     string | *"edge"
+	clientId:     string | *""
 	clientSecret: string | *""
 
 	accessToken: {
@@ -331,4 +419,33 @@ import (
 
 	// Optional requested permissions
 	additionalScopes: [...string] | *["openid"]
+}
+
+#envoy_tcp_rate_limit: ratelimit.#RateLimit | *#default_rate_limit
+
+// Assumes the http/2 cluster between proxy and the rate limit service is called ratelimit.
+// see https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/other_features/global_rate_limiting#arch-overview-global-rate-limit for a discussion of ratelimiting and 
+// special descriptors to use
+#default_rate_limit: {
+	stat_prefix:       string | *defaults.edge.key
+	domain:            string | *defaults.edge.key
+	failure_mode_deny: true
+	descriptors: [
+		{
+			entries: [
+				{
+					key:   "path"
+					value: "/"
+				},
+			]
+		},
+	]
+	rate_limit_service: {
+		grpc_service: {
+			envoy_grpc: {
+				timeout:      "0.25s"
+				cluster_name: "ratelimit"
+			}
+		}
+	}
 }
