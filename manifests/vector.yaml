@@ -1,0 +1,269 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vector
+---
+apiVersion: v1
+automountServiceAccountToken: true
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/instance: vector
+    app.kubernetes.io/name: vector-agent
+    app.kubernetes.io/part-of: vector-agent
+    app.kubernetes.io/version: 0.0.0
+  name: vector-agent
+  namespace: vector
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vector-agent
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  - pods
+  verbs:
+  - watch
+  - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/instance: vector
+    app.kubernetes.io/name: vector-agent
+    app.kubernetes.io/part-of: vector-agent
+    app.kubernetes.io/version: 0.0.0
+  name: vector-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vector-agent
+subjects:
+- kind: ServiceAccount
+  name: vector-agent
+  namespace: vector
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vector-agent-config
+  namespace: vector
+data:
+  vector.toml: |
+    [sources.file]
+    type = "file"
+    include = ["/var/log/pods/greymatter*/sidecar/*.log"]
+    ignore_older = 1200
+    remove_after_secs = 3600
+
+    # parse the log for the "eventId" string, indicating that it is 
+    # a Grey Matter Observable log
+    [transforms.observables_only]
+    type = "filter"
+    inputs = ["file"]
+    condition = '''
+    . |= parse_regex!(.message, r'(?P<obsMatch>eventId)')
+    . = .obsMatch != null
+    '''
+
+    # parse observable JSON out of the Kubernetes log, and coerce the timestamp
+    # value from ms to an actual timestamp
+    [transforms.modify]
+    type = "remap"
+    inputs = ["observables_only"]
+    source = '''
+    . |= parse_regex!(.message, r'^\d+-\d+-\d+T\d+:\d+:\d+.\d+Z stdout F (?P<event>.*)$')
+    . = parse_json!(.event)
+    .timestamp, err = to_timestamp(.timestamp)
+    '''
+
+    [sinks.es]
+    type = "elasticsearch"
+    inputs = ["modify"]
+    endpoint = "http://elasticsearch.elastic.svc.cluster.local:9200"
+    mode = "bulk"
+    bulk.index = "vector"
+    compression = "none"
+    auth.strategy = "basic"
+    auth.user = "elastic"
+    auth.password = "${ELASTICSEARCH_PASSWORD}"
+    suppress_type_name = true
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/instance: vector
+    app.kubernetes.io/name: vector-agent
+    app.kubernetes.io/part-of: vector-agent
+    app.kubernetes.io/version: 0.0.0
+  name: vector-agent
+  namespace: vector
+data:
+  managed.toml: |
+    # Configuration for vector.
+    # Docs: https://vector.dev/docs/
+
+    data_dir = "/vector-data-dir"
+
+    [api]
+      enabled = false
+      address = "0.0.0.0:8686"
+      playground = true
+
+    [log_schema]
+      host_key = "host"
+      message_key = "message"
+      source_type_key = "source_type"
+      timestamp_key = "timestamp"
+
+    # Ingest logs from Kubernetes.
+    [sources.kubernetes_logs]
+      type = "kubernetes_logs"
+
+    # Capture the metrics from the host.
+    [sources.host_metrics]
+      type = "host_metrics"
+      [sources.host_metrics.filesystem]
+        [sources.host_metrics.filesystem.devices]
+          excludes = ["binfmt_misc"]
+        [sources.host_metrics.filesystem.filesystems]
+          excludes = ["binfmt_misc"]
+        [sources.host_metrics.filesystem.mountpoints]
+          excludes = ["*/proc/sys/fs/binfmt_misc"]
+
+    # Emit internal Vector metrics.
+    [sources.internal_metrics]
+      type = "internal_metrics"
+
+    # Expose metrics for scraping in the Prometheus format.
+    [sinks.prometheus_sink]
+      address = "0.0.0.0:9090"
+      inputs = ["internal_metrics", "host_metrics"]
+      type = "prometheus"
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    app.kubernetes.io/instance: vector
+    app.kubernetes.io/name: vector-agent
+    app.kubernetes.io/part-of: vector-agent
+    app.kubernetes.io/version: 0.0.0
+  name: vector-agent
+  namespace: vector
+spec:
+  minReadySeconds: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: vector
+      app.kubernetes.io/name: vector-agent
+  template:
+    metadata:
+      annotations: null
+      labels:
+        app.kubernetes.io/instance: vector
+        app.kubernetes.io/name: vector-agent
+        vector.dev/exclude: "true"
+    spec:
+      containers:
+      - args:
+        - --config-dir
+        - /etc/vector/
+        command: []
+        env:
+        - name: VECTOR_SELF_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: VECTOR_SELF_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: VECTOR_SELF_POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: PROCFS_ROOT
+          value: /host/proc
+        - name: SYSFS_ROOT
+          value: /host/sys
+        - name: LOG
+          value: info
+        - name: ELASTICSEARCH_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: elasticsearch-password
+        image: timberio/vector:0.22.0-debian
+        imagePullPolicy: IfNotPresent
+        name: vector
+        ports:
+        - containerPort: 9090
+          name: metrics
+          protocol: TCP
+        volumeMounts:
+        - mountPath: /var/log/
+          name: var-log
+          readOnly: true
+        - mountPath: /var/lib
+          name: var-lib
+          readOnly: true
+        - mountPath: /vector-data-dir
+          name: data-dir
+        - mountPath: /etc/vector
+          name: config-dir
+          readOnly: true
+        - mountPath: /host/proc
+          name: procfs
+          readOnly: true
+        - mountPath: /host/sys
+          name: sysfs
+          readOnly: true
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "500m"
+          limits:
+            memory: "1024Mi"
+            cpu: "6000m"
+      serviceAccountName: vector-agent
+      terminationGracePeriodSeconds: 60
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+      volumes:
+      - hostPath:
+          path: /var/log/
+        name: var-log
+      - hostPath:
+          path: /var/lib/
+        name: var-lib
+      - hostPath:
+          path: /var/lib/vector/
+        name: data-dir
+      - name: config-dir
+        projected:
+          sources:
+          - configMap:
+              name: vector-agent
+          - configMap:
+              name: vector-agent-config
+              optional: true
+          - secret:
+              name: vector-agent-config
+              optional: true
+      - hostPath:
+          path: /proc
+        name: procfs
+      - hostPath:
+          path: /sys
+        name: sysfs
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 1
+    type: RollingUpdate
