@@ -12,6 +12,8 @@ spec:
     metadata:
       labels:
         greymatter.io/cluster: edge-plus
+      annotations:
+        greymatter.io/inject-sidecar-to: '10809'
     spec:
       containers:
       - env:
