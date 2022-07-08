@@ -17,6 +17,8 @@ spec:
       labels:
         app: observables
         greymatter.io/cluster: observables
+    annotations:
+      greymatter.io/inject-sidecar-to: '5000'
     spec:
       containers:
         - name: service
