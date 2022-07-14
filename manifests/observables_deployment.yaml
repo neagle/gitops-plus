@@ -18,29 +18,29 @@ spec:
         app: observables
         greymatter.io/cluster: observables
       annotations:
-        greymatter.io/inject-sidecar-to: '5000'
+        greymatter.io/inject-sidecar-to: "5000"
     spec:
       containers:
         - name: service
-          image: quay.io/greymatterio/observables:1.1.2
+          image: quay.io/greymatterio/observables:1.1.3
           imagePullPolicy: Always
           ports:
             - containerPort: 5000
           env:
-          - name: BASE_PATH
-            value: /services/observables
-          - name: ES_INDEX
-            value: vector
-          - name: ES_EDGE_TOPIC
-            value: edge
-          - name: TARGET_PRODUCT
-            value: gm
-          - name: ES_USER
-            value: elastic
-          - name: ES_PASSWORD
-            valueFrom:
-              secretKeyRef:
-                name: elasticsearch-password
-                key: password
+            - name: BASE_PATH
+              value: /services/observables
+            - name: ES_INDEX
+              value: vector
+            - name: ES_EDGE_TOPIC
+              value: edge
+            - name: TARGET_PRODUCT
+              value: gm
+            - name: ES_USER
+              value: elastic
+            - name: ES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: elasticsearch-password
+                  key: password
       imagePullSecrets:
         - name: gm-docker-secret
