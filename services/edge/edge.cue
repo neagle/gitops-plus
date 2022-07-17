@@ -27,8 +27,9 @@ edge_config: [
 		port:                        defaults.ports.edge_ingress
 		_gm_observables_topic:       defaults.edge.key
 		_is_ingress:                 true
-		_enable_oidc_authentication: true
-		_enable_rbac:                true
+		_enable_oidc_authentication: false
+		_enable_rbac:                false
+		_enable_fault_injection:     false
 		_oidc_endpoint:              defaults.edge.oidc.endpoint
 		_oidc_service_url:           "https://\(defaults.edge.oidc.domain):\(defaults.ports.edge_ingress)"
 		_oidc_provider:              "\(defaults.edge.oidc.endpoint)/auth/realms/\(defaults.edge.oidc.realm)"
@@ -65,7 +66,7 @@ edge_config: [
 
 	// egress->Keycloak for OIDC/JWT Authentication (only necessary with remote JWKS provider)
 	// NB: You need to add the EdgeToKeycloakName key to the domain_keys and listener_keys 
-	// in the #proxy above for the cluster to be discoverable by the sidecar
+	// in the #proxy above for the cluster to be discoverable by Envoy
 	// #cluster & {
 	//  cluster_key:    EdgeToKeycloakName
 	//  _upstream_host: defaults.edge.oidc.endpoint_host
@@ -81,5 +82,5 @@ edge_config: [
 	// #listener & {
 	//  listener_key: EdgeToKeycloakName
 	//  port:         defaults.edge.oidc.endpoint_port
-	// },,
+	// },,,
 ]

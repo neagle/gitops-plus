@@ -4,6 +4,11 @@ import (
 	greymatter "greymatter.io/api"
 	rbac "envoyproxy.io/extensions/filters/http/rbac/v3"
 	ratelimit "envoyproxy.io/extensions/filters/network/ratelimit/v3"
+	jwt_authn "envoyproxy.io/extensions/filters/http/jwt_authn/v3"
+	fault "envoyproxy.io/extensions/filters/http/fault/v3"
+	ext_authz "envoyproxy.io/extensions/filters/http/ext_authz/v3"
+	ext_authz_tcp "envoyproxy.io/extensions/filters/network/ext_authz/v3"
+	lua "envoyproxy.io/extensions/filters/http/lua/v3"
 )
 
 /////////////////////////////////////////////////////////////
@@ -38,9 +43,11 @@ import (
 	_gm_observables_topic:       string        // unique topic name for observable audit collection
 	_spire_self:                 string        // can specify current identity - defaults to "edge"
 	_spire_other:                string        // can specify an allowable downstream identity - defaults to "edge"
-	_enable_oidc_validation:     bool | *false
 	_enable_rbac:                bool | *false
+	_enable_fault_injection:     bool | *false
 	_enable_oidc_authentication: bool | *false
+	_enable_inheaders:           bool | *false
+	_enable_impersonation:       bool | *false
 	_oidc_endpoint:              string
 	_oidc_service_url:           string
 	_oidc_provider:              string
@@ -48,8 +55,8 @@ import (
 	_oidc_client_secret:         string
 	_oidc_cookie_domain:         string
 	_oidc_realm:                 string
-	// You must include a service->rate limiter service cluster
-	_enable_tcp_rate_limit: bool | *false
+	_enable_tcp_rate_limit:      bool | *false // You must include a service->rate limiter service cluster. HTTP/2
+	_enable_ext_authz:           bool | *false // You must create a service->ext authz service cluster. HTTP/2 only if auth server is GRPC
 
 	listener_key: string
 	name:         listener_key
@@ -59,6 +66,9 @@ import (
 
 	if _tcp_upstream != _|_ {
 		active_network_filters: [
+			if _enable_ext_authz {
+				"envoy.ext_authz"
+			},
 			if _enable_tcp_rate_limit {
 				"envoy.rate_limit"
 			},
@@ -67,6 +77,10 @@ import (
 		network_filters: {
 			if _enable_tcp_rate_limit {
 				envoy_rate_limit: #envoy_tcp_rate_limit
+			}
+
+			if _enable_ext_authz {
+				envoy_ext_authz: #envoy_tcp_ext_authz
 			}
 
 			// Needs to be last in filter chain
@@ -80,18 +94,33 @@ import (
 	// if there isn't a tcp cluster, then assume http filters, and provide the usual defaults
 	if _tcp_upstream == _|_ && _is_ingress == true {
 		active_http_filters: [
+			if _enable_fault_injection {
+				"envoy.fault"
+			},
+			if _enable_inheaders {
+				"gm.inheaders"
+			},
+			if _enable_impersonation {
+				"gm.acl"
+			},
 			if _enable_oidc_authentication {
 				"gm.oidc-authentication"
 			},
 			if _enable_oidc_authentication {
 				"gm.ensure-variables"
 			},
+			if _enable_oidc_authentication {
+				"gm.oidc-validation"
+			},
+			if _enable_oidc_authentication {
+				"envoy.lua"
+			},
 			"gm.observables",
 			if _enable_oidc_authentication {
 				"envoy.jwt_authn"
 			},
-			if _enable_oidc_validation {
-				"gm.oidc-validation"
+			if _enable_ext_authz {
+				"envoy.ext_authz"
 			},
 			if _enable_rbac {
 				"envoy.rbac"
@@ -139,24 +168,25 @@ import (
 					}
 				}
 				"gm_ensure-variables": #ensure_variables_filter
-				"envoy_jwt_authn":     #envoy_jwt_authn & {
-					providers: defaults.edge.oidc.jwt_authn_provider
-				}
-			}
-			if _enable_oidc_validation {
 				"gm_oidc-validation": {
-					enforce: bool | *false
+					provider: _oidc_provider
+					enforce:  bool | *false
 					if enforce {
 						enforceResponseCode: int32 | *403
 					}
-					accessToken?: {
-						location: *"header" | _
+					accessToken: {
+						key:      "access_token"
+						location: *"cookie" | _
 						if location == "metadata" {
 							metadataFilter: string
 						}
 					}
-					userInfo?: {
+					userInfo: {
 						location: *"header" | _
+						// USER_DN header is currently required for observables
+						// application to show user audit data
+						key: "USER_DN"
+						claims: ["name"]
 					}
 					TLSConfig?: {
 						useTLS:             bool | *false
@@ -166,9 +196,38 @@ import (
 						insecureSkipVerify: bool | *false
 					}
 				}
+				// Use Lua pattern matching to get the user's name from encoded JSON object
+				"envoy_lua": lua.#Lua & {
+					inline_code: """
+							function envoy_on_request(handle)
+								local user_dn = handle:headers():get('USER_DN')
+								parsed_user_dn = string.match(user_dn, '%%7B%%22name%%22:%%22(.*)%%22%%7D')
+								parsed_user_dn = string.gsub(parsed_user_dn, '%%20', ' ')
+								handle:headers():replace('USER_DN', parsed_user_dn)
+							end
+						"""
+				}
+				"envoy_jwt_authn": #envoy_jwt_authn & {
+					providers: defaults.edge.oidc.jwt_authn_provider
+				}
 			}
 			if _enable_rbac {
 				envoy_rbac: #envoy_rbac_filter
+			}
+			if _enable_fault_injection {
+				envoy_fault: #envoy_fault_injection
+			}
+			if _enable_inheaders {
+				gm_inheaders: debug: bool | *false
+			}
+			if _enable_impersonation {
+				gm_impersonation: {
+					servers:       string | *""
+					caseSensitive: bool | *false
+				}
+			}
+			if _enable_ext_authz {
+				envoy_ext_authz: #envoy_ext_authz
 			}
 		}
 	}
@@ -197,10 +256,13 @@ import (
 	_spire_self:              string // can specify current identity - defaults to "edge"
 	_spire_other:             string // can specify an allowable upstream identity - defaults to "edge"
 	_enable_circuit_breakers: bool | *false
+	// We can expand options here for load balancers that superseed the lb_policy field
+	_load_balancer: "round_robin" | "least_request" | "maglev" | "ring_hash" | "random"
 
 	cluster_key: string
 	name:        string | *cluster_key
 	instances:   [...greymatter.#Instance] | *[]
+
 	if _upstream_port != _|_ {
 		instances: [{host: _upstream_host, port: _upstream_port}]
 	}
@@ -220,6 +282,22 @@ import (
 		circuit_breakers: #circuit_breaker // can specify circuit breaker levels for normal
 		// and high priority traffic with configured defaults
 	}
+	if _load_balancer != _|_ {
+		lb_policy: _load_balancer
+		if lb_policy == "least_request" {
+			least_request_lb_config: {
+				choice_count: uint32 | *2
+			}
+		}
+
+		if lb_policy == "ring_hash" || lb_policy == "maglev" {
+			ring_hash_lb_config: {
+				minimum_ring_size?: uint64 & <8388608 | *1024
+				hash_func?:         uint32 | *0                  //corresponds to the xxHash; 1 for MURMUR_HASH_2 
+				maximum_ring_size?: uint64 & <8388608 | *4194304 // 4M
+			}
+		}
+	}
 }
 
 #circuit_breaker: {
@@ -237,9 +315,10 @@ import (
 }
 
 #route: greymatter.#Route & {
-	route_key:             string
-	domain_key:            string | *route_key
-	_upstream_cluster_key: string | *route_key
+	route_key:               string
+	domain_key:              string | *route_key
+	_upstream_cluster_key:   string | *route_key
+	_enable_route_ext_authz: bool | *false
 	route_match: {
 		path:       string | *"/"
 		match_type: string | *"prefix"
@@ -252,6 +331,11 @@ import (
 	}]
 	zone_key:       mesh.spec.zone
 	prefix_rewrite: string | *"/"
+	filter_configs: {
+		if _enable_route_ext_authz {
+			envoy_ext_authz: ext_authz.#ExtAuthzPerRoute | *{disabled: true} // example: disable auth for landing page
+		}
+	}
 }
 
 #proxy: greymatter.#Proxy & {
@@ -334,7 +418,7 @@ import (
 
 // This filter allows for the JWT supplied by an OIDC provider to be validated and 
 // used in other contexts, such as RBAC configurations.
-#envoy_jwt_authn: {
+#envoy_jwt_authn: jwt_authn.#JwtAuthentication & {
 	providers: {
 		keycloak?: {
 			issuer:    string | *""
@@ -427,8 +511,8 @@ import (
 // see https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/other_features/global_rate_limiting#arch-overview-global-rate-limit for a discussion of ratelimiting and 
 // special descriptors to use
 #default_rate_limit: {
-	stat_prefix:       string | *defaults.edge.key
-	domain:            string | *defaults.edge.key
+	stat_prefix:       defaults.edge.key
+	domain:            defaults.edge.key
 	failure_mode_deny: true
 	descriptors: [
 		{
@@ -448,4 +532,50 @@ import (
 			}
 		}
 	}
+}
+
+// Allows for the configuration of fault injection into a proxy
+// See https://www.envoyproxy.io/docs/envoy/v1.16.5/configuration/http/http_filters/fault_filter.html for header/runtime configuration
+// specifics, along with further configuration for specific upstream clusters
+#envoy_fault_injection: fault.#HTTPFault | *{
+	delay: {
+		fixed_delay: "5s"
+		percentage: {
+			numerator:   50
+			denominator: "HUNDRED"
+		}
+	}
+	abort: {
+		// Allows request to specify the status code with which to fail using the x-envoy-fault-abort-request header
+		header_abort: {} // Headers can also specify the percentage of requests to fail, capped by the below value with the x-envoy-fault-abort-request-percentage header
+		percentage: {
+			numerator:   50
+			denominator: "HUNDRED"
+		}
+	}
+}
+
+// See https://www.envoyproxy.io/docs/envoy/v1.16.5/configuration/http/http_filters/ext_authz_filter for additional configuration including
+// interfacing with a traditional HTTP/1 authorization service.
+#envoy_ext_authz: ext_authz.#ExtAuthz | *{
+	grpc_service: {
+		envoy_grpc: {
+			cluster_name: "ext_authz" // Needs to match the name of your cluster. Since its a grpc connection, you must create an http/2 cluster
+		}
+	}
+	failure_mode_allow: false // set to true to allow requests to pass in the case of a authz network failure
+	with_request_body: {
+		max_request_bytes:     1024
+		allow_partial_message: true
+		pack_as_bytes:         true
+	}
+}
+
+#envoy_tcp_ext_authz: ext_authz_tcp.#ExtAuthz | *{
+	grpc_service: {
+		envoy_grpc: {
+			cluster_name: "ext_authz_tcp" // Needs to match the name of your cluster
+		}
+	}
+	failure_mode_allow: false // set to true to allow requests to pass in the case of a authz network failure
 }
