@@ -84,7 +84,7 @@ data:
     [sinks.es]
     type = "elasticsearch"
     inputs = ["modify"]
-    endpoint = "http://elasticsearch.elastic.svc.cluster.local:9200"
+    endpoint = "https://7b1e84466f0f42b9867810f7bab3d48e.westus2.azure.elastic-cloud.com"
     mode = "bulk"
     bulk.index = "vector"
     compression = "none"
